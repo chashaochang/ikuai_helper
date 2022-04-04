@@ -1,0 +1,202 @@
+// Based on the code by Ivan Cherepanov
+// https://medium.com/flutter-community/neumorphic-designs-in-flutter-eab9a4de2059
+import 'dart:math';
+
+import 'package:flutter/material.dart';
+import 'package:neumorphic/src/neumorphic/theme.dart';
+
+import '../params.dart';
+
+/// It is container like a `Material` merged with `Container`, but implements Neumorphism.
+class NeuCard extends StatelessWidget {
+  /// Creates a Neumorphic design card
+  NeuCard({
+    this.child,
+    this.bevel = 12.0,
+    this.curveType = CurveType.convex,
+    Color color,
+    NeumorphicDecoration decoration,
+    this.alignment,
+    this.width,
+    this.height,
+    BoxConstraints constraints,
+    this.margin,
+    this.padding,
+    this.transform,
+    Key key,
+  })  : decoration = decoration ?? NeumorphicDecoration(color: color),
+        constraints = (width != null || height != null)
+            ? constraints?.tighten(width: width, height: height) ??
+                BoxConstraints.tightFor(width: width, height: height)
+            : constraints,
+        super(key: key);
+
+  final Widget child;
+
+  /// Elevation relative to parent. Main constituent of Neumorphism.
+  final double bevel;
+  final CurveType curveType;
+
+  /// The decoration to paint behind the [child].
+  ///
+  /// A shorthand for specifying just a solid color is available in the
+  /// constructor: set the `color` argument instead of the `decoration`
+  /// argument.
+  final NeumorphicDecoration decoration;
+
+  final AlignmentGeometry alignment;
+  final double width;
+  final double height;
+  final BoxConstraints constraints;
+  final EdgeInsetsGeometry margin;
+  final EdgeInsets padding;
+  final Matrix4 transform;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = decoration?.color ??
+        NeuTheme.of(context).backgroundColor ??
+        Theme.of(context).backgroundColor;
+    final emboss = curveType == CurveType.emboss;
+
+    Color colorValue = color;
+    final double _bevel =
+        Theme.of(context).brightness == Brightness.dark ? min(5, bevel) : bevel;
+    List<BoxShadow> shadowList = [
+      BoxShadow(
+        color: _getAdjustColor(color, emboss ? 0 - _bevel : _bevel),
+        offset: Offset(0 - _bevel, 0 - _bevel),
+        blurRadius: _bevel,
+      ),
+      BoxShadow(
+        color: _getAdjustColor(color, emboss ? _bevel : 0 - _bevel),
+        offset: Offset(_bevel, _bevel),
+        blurRadius: _bevel,
+      )
+    ];
+
+    if (emboss) {
+      shadowList = [
+        BoxShadow(
+          color: _getAdjustColor(color, _bevel),
+          offset: Offset(_bevel / 4, _bevel / 4),
+          blurRadius: _bevel / 4,
+        ),
+        BoxShadow(
+          color: _getAdjustColor(color, 0 - _bevel),
+          offset: Offset(0 - _bevel / 6, 0 - _bevel / 6),
+          blurRadius: _bevel / 6,
+        ),
+      ];
+
+      colorValue = _getAdjustColor(colorValue, 0 - _bevel / 2);
+    }
+
+    Gradient gradient;
+    switch (curveType) {
+      case CurveType.concave:
+        gradient = _getConcaveGradients(colorValue, _bevel);
+        break;
+      case CurveType.convex:
+        gradient = _getConvexGradients(colorValue, _bevel);
+        break;
+      case CurveType.emboss:
+      case CurveType.flat:
+        gradient = _getFlatGradients(colorValue, _bevel);
+        break;
+    }
+
+    Widget content = child;
+
+    if (decoration.borderRadius != null ||
+        decoration.clipBehavior != Clip.antiAlias) {
+      content = ClipRRect(
+        // borderRadius: decoration.borderRadius,
+        clipBehavior: decoration.clipBehavior,
+        child: content,
+      );
+    }
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 150),
+      alignment: alignment,
+      width: width,
+      height: height,
+      constraints: constraints,
+      margin: margin,
+      padding: padding,
+      transform: transform,
+      decoration: BoxDecoration(
+        borderRadius: decoration.borderRadius,
+        gradient: gradient,
+        boxShadow: shadowList,
+        shape: decoration.shape,
+        border: decoration.border,
+      ),
+      child: content,
+    );
+  }
+
+  Color _getAdjustColor(Color baseColor, double amount) {
+    Map<String, int> colors = {
+      'r': baseColor.red,
+      'g': baseColor.green,
+      'b': baseColor.blue
+    };
+
+    colors = colors.map((key, value) {
+      if (value + amount < 0) {
+        return MapEntry(key, 0);
+      }
+      if (value + amount > 255) {
+        return MapEntry(key, 255);
+      }
+      return MapEntry(key, (value + amount).floor());
+    });
+    return Color.fromRGBO(colors['r'], colors['g'], colors['b'], 1);
+  }
+
+  Gradient _getFlatGradients(Color baseColor, double depth) => LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [
+          baseColor,
+          baseColor,
+        ],
+      );
+
+  Gradient _getConcaveGradients(Color baseColor, double depth) =>
+      LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [
+          _getAdjustColor(baseColor, 0 - depth),
+          _getAdjustColor(baseColor, depth),
+        ],
+      );
+
+  Gradient _getConvexGradients(Color baseColor, double depth) => LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [
+          _getAdjustColor(baseColor, depth),
+          _getAdjustColor(baseColor, 0 - depth),
+        ],
+      );
+}
+
+class NeumorphicDecoration {
+  const NeumorphicDecoration({
+    this.color,
+    this.borderRadius,
+    this.clipBehavior = Clip.antiAlias,
+    this.shape = BoxShape.rectangle,
+    this.border,
+  });
+
+  final Color color;
+  final BorderRadiusGeometry borderRadius;
+  final BoxShape shape;
+  final BoxBorder border;
+  final Clip clipBehavior;
+}
